@@ -45,10 +45,10 @@ function draw() {
   g3D.background(0, 0);
   // Apply impulse if velocity exceeds threshold
   if (abs(player.vel.x) > threshold) {
-    rotVelY = player.vel.x * 0.08;
+    rotVelY = player.vel.x * 0.02;
   }
   if (abs(player.vel.y) > threshold) {
-    rotVelX = player.vel.y * 0.08;
+    rotVelX = player.vel.y * 0.02;
   }
 
   // Apply damping (easing)

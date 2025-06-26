@@ -61,7 +61,7 @@ function setup() {
   let instructionSprite = new Sprite(width/2, 30, 50, 50, 'none');
   instructionSprite.color = 'rgba(0,0,0,0)';
   instructionSprite.strokeWeight = 0;
-  instructionSprite.text = 'Keep your hand in view to start, sit about 1 metre away for best control.'
+  instructionSprite.text = 'Keep your hand in view to start, sit about 1 metre away for best control.';
   instructionSprite.textSize = 45;
   // Create the video and hide it
   video = createCapture(constraints);
@@ -155,10 +155,10 @@ function sphereControl(finger1,finger2,finger3){
   if(finger2.overlapping(finger3)){
     // Apply impulse if velocity exceeds threshold
     if (abs(finger3.vel.x) > threshold) {
-      rotVelY = finger3.vel.x * 0.08;
+      rotVelY = finger3.vel.x * 0.02;
     }
     if (abs(finger3.vel.y) > threshold) {
-      rotVelX = finger3.vel.y * 0.08;
+      rotVelX = finger3.vel.y * 0.02;
     }
   }
 

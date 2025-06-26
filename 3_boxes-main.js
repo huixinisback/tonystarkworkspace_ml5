@@ -57,6 +57,12 @@ function setup() {
         playerData.push(info);
     }
 
+    // Instruction
+    let instructionSprite = new Sprite(width/2, 30, 50, 50, 'none');
+    instructionSprite.color = 'rgba(0,0,0,0)';
+    instructionSprite.strokeWeight = 0;
+    instructionSprite.text = 'create - index and middle; delete - thumb & middle; move - thumb and index';
+    instructionSprite.textSize = 45;
     
     // Create the video and hide it
     video = createCapture(constraints);
@@ -132,17 +138,17 @@ function drawKeyPoints(hand, player, playerDatum){
                 }
             }
 
-            if(thumbSprite.overlapping(middleSprite) && selectedSprite){
-                middleSprite.color ='rgb(59, 229, 255)';
-                middleSprite.text ='moving!';
-                selectedSprite.x = lerp(selectedSprite.x,middleSprite.x,0.4);
-                selectedSprite.y = lerp(selectedSprite.y,middleSprite.y,0.4);
-            } else if (thumbSprite.overlapped(middleSprite) && selectedSprite){
+            if(thumbSprite.overlapping(indexSprite) && selectedSprite){
+                indexSprite.color ='rgb(59, 229, 255)';
+                indexSprite.text ='moving!';
+                selectedSprite.x = lerp(selectedSprite.x,indexSprite.x,0.4);
+                selectedSprite.y = lerp(selectedSprite.y,indexSprite.y,0.4);
+            } else if (thumbSprite.overlapped(indexSprite) && selectedSprite){
                 movePauseFrameCount = frameCount + 60;
                 selectedSprite = null;
-            } else if(!thumbSprite.overlapping(middleSprite) && selectedSprite && movePauseFrameCount<=frameCount){
-                middleSprite.color = 'rgba(255, 255, 255, 0.50)';
-                middleSprite.text = '';
+            } else if(thumbSprite.overlapping(middleSprite) && selectedSprite && movePauseFrameCount<=frameCount){
+                indexSprite.color = 'rgba(255, 255, 255, 0.50)';
+                indexSprite.text = '';
                 selectedSprite.remove();
                 selectedSprite = null;
                 //  start timer for how long visual effects will show

@@ -13,11 +13,11 @@ Interact with the virtual environment using just your fingers and gestures track
   → A new box will appear at your finger location.
 
 ### ❌ Remove a Box
-- **Touch the tip of your thumb to any existing box**  
+- **Touch the tip of your thumb and middle finger together while touching a box**  
   → The box will be deleted immediately.
 
 ### 🤏 Move a Box
-- **Touch the tip of your thumb and middle finger together while touching a box**  
+- **Touch the tip of your thumb and index finger together while touching a box**  
   → The box will follow your hand as long as the gesture is held.
 
 ✅ **To use this mode:** Include `3_boxes-main.js` in your HTML file.
@@ -27,7 +27,7 @@ Interact with the virtual environment using just your fingers and gestures track
 ## 🧊 Mode: 3D Cube Interaction (`6_spherecontrol-main.js`)
 
 ### 🔍 Zoom In / Out
-- **Pinch your thumb and index finger together**
+- **Pinch your thumb and index finger together while within the box**
   - Pull apart to **zoom in**
   - Bring closer to **zoom out**
 
