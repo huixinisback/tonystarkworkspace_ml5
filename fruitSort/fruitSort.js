@@ -57,12 +57,11 @@ function preload(){
     appleImg = loadImage('assets/apple.png');
     durianImg = loadImage('assets/durian.png');
     orangeImg = loadImage('assets/orange.png');
-    bg = loadImage('assets/woodenbg.jpg');
     fruitTypes = [appleImg,durianImg,orangeImg];
     appleBasketImg = loadImage('assets/applebasket.png');
     orangeBasketImg = loadImage('assets/orangebasket.png');
     trashImg = loadImage('assets/trashbin.png');
-    receiptFont = loadFont("assets/Merchant Copy Doublesize.ttf"); //custom fonts, find free ones online
+    receiptFont = loadFont('assets/Merchant Copy Doublesize.ttf'); //custom fonts, find free ones online
     handPose = ml5.handPose(options); // using the hand pose models with settings
 }
 
