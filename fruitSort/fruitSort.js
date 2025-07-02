@@ -2,6 +2,9 @@
 let handPose;
 let video;
 let hands = []; // store an array of detected hands, and each hand has a property keypoints that will contain an array of keypoints.
+let handEdgePools = []; // array of arrays: one pool per hand
+const EDGES_PER_HAND = 21; // safe default for full mesh, how much bounding lines per hand
+
 // Create options for model settings
 let options = {
     flipped: true,
@@ -25,7 +28,7 @@ flipped:true,
 };
 // Images
 let appleImg, durianImg, orangeImg, appleBasketImg, orangeBasketImg, trashImg;
-let fruitTypes, fruits, appleBasket,orangeBasket;
+let fruitTypes, fruits, appleBasket,orangeBasket, trashBin;
 
 const defaultStats = {
     apples: 0,
@@ -43,11 +46,11 @@ let startGame = false;
 let endGame = false;
 let startTime = 0;
 let pauseTime = 0;
-const GAME_DURATION_FRAMES = 900;
+const GAME_DURATION_FRAMES = 1800; // 60 frames *  nth seconds
 const PAUSE_DURATION_FRAMES = 720;
 let selectedObjects = []; // 1 selected per hand
 
-//ending stats
+//info sprites
 let receipt;
 
 function preload(){
@@ -65,10 +68,9 @@ function preload(){
 
 function setup(){
     new Canvas();
-    world.gravity = {x:0, y:2}
+    world.gravity = {x:0, y:0.5}
     fruits = new Group();
     fruits.collider = 'dynamic';
-
 
     basket = new Group();
     appleBasket = new basket.Sprite(width/2-400,height-150,220,200,'static');
@@ -82,18 +84,32 @@ function setup(){
     orangeBasket.img.scale.y = orangeBasket.h / orangeBasket.img.height;
     orangeBasket.totalNo = 0;
 
-    trashBin = new basket.Sprite(width/2,height-150, 110, 150, 'static');
+    trashBin = new basket.Sprite(width/2,height-150, 150, 200, 'static');
     trashBin.img = trashImg;
     trashBin.img.scale.x = trashBin.w / trashBin.img.width;
     trashBin.img.scale.y = trashBin.h / trashBin.img.height;
     // ending sprite
     receipt = new Sprite(width/2, height/2, 0.3 * width, height - 100 , 'none');
-    receipt.textAlign = 'left top';
     receipt.textSize = 16;
     receipt.textColor = 'black';
     receipt.color = 'white';
     receipt.visible = false;
-
+	//Text settings
+	textFont(receiptFont);
+	fill(255);
+	stroke(0);
+	// info, static image
+	infoG = createGraphics(500, 120);
+	infoG.textFont(receiptFont);
+	infoG.textSize(16);
+	infoG.fill(255);
+	infoG.stroke(0);
+	infoG.textAlign(LEFT, TOP);
+	infoG.textWrap(WORD);
+	infoG.text(
+		"Rules\n+0.5 Correct fruit\n-0.5 Wrong basket\nDurian in basket -> all fruits wasted\nDurian in trash -> no effect\n-0.5 per wasted fruit",
+		0, 0
+	);
     //ML settings for hand
     // Create the video and hide it
     video = createCapture(constraints);
@@ -112,9 +128,10 @@ function gotHands(results) {
 
 function draw(){
     clear();
-    image(bg, 0, 0, width, height); 
+    image(video, 0, 0, width, width * video.height / video.width);
+	image(infoG, 10, 10); // show info image
     // Cull fruits 40px beyond the screen edges
-    fruits.cull(60);
+    fruits.cull(40);
 
     if(!startGame && hands.length>0 && (pauseTime + PAUSE_DURATION_FRAMES < frameCount ||pauseTime ==0) && frameCount!=pauseTime){
         startGame = true;
@@ -128,13 +145,12 @@ function draw(){
 
     if(startGame){
         pauseTime = 0;
-        let secondsLeft = startTime + GAME_DURATION_FRAMES - frameCount;
+        let secondsLeft = (startTime + GAME_DURATION_FRAMES - frameCount)/60;
         push();
         textAlign(CENTER, TOP);
         fill(255);
-        stroke(0);
         textSize(40);
-        text("Time Left: "+ secondsLeft, width/2, 20);
+        text("Time Left: "+ secondsLeft.toFixed(2), width/2, 20);
         pop();
         if (fruits.length < 10 && frameCount % 60 === 0) {
             spawnFruit();
@@ -155,7 +171,6 @@ function draw(){
         fill(255);
         textAlign(CENTER, CENTER);
         textSize(24);
-        textFont(receiptFont)
         text("Show Hand to Start Game", width/2, height/2);
         pop();
   }
@@ -166,7 +181,7 @@ function draw(){
 
 function spawnFruit() {
     let fruitData = random(fruitTypes); // pick one at random
-    let fruit = new fruits.Sprite(random(50, width-50), 30 , 100); // spawn at bottom
+    let fruit = new fruits.Sprite(random(50, width-50), 30 , 100); //spawn at the top
     fruit.img = fruitData;
     // make the images as big as the sprite
     fruit.img.scale.x = fruit.w / fruit.img.width;
@@ -181,76 +196,40 @@ function spawnFruit() {
 }
 
 function moveFruits() {
-  for (let i = 0; i < hands.length; i++) {
-    let hand = hands[i];
-    let index;
-    if (hand) {index = hand.keypoints[8];}
+	for (let i = 0; i < hands.length; i++) {
+		let hand = hands[i];
+		let index;
+		if (hand) {
+			index = hand.keypoints[8];
+			circle(index.x, index.y, 20); // visualize fingertip, glue point
+		}
+	
 
-    if (!hand || !index) {
-      selectedObjects[i] = null;
-      continue;
-    }
+		if (!hand || !index) {
+			selectedObjects[i] = null;
+			continue;
+		}
 
-    let selected = selectedObjects[i];
+		let selected = selectedObjects[i];
 
-    // Check if current selection is invalid or removed
-    if (!selected || !fruits.includes(selected)) {
-      let nearby = world.getSpriteAt(index.x, index.y, fruits);
-      if (nearby && fruits.includes(nearby)) {
-        selectedObjects[i] = nearby;
-        selected = nearby;
-      } else {
-        selectedObjects[i] = null;
-        continue;
-      }
-    }
-
-    // Move the selected fruit with the fingertip
-    selected.pos.x = index.x;
-    selected.pos.y = index.y;
-    selected.vel.set(0, 0); // freeze physics
-  }
-  
+		// Check if current selection is invalid or removed
+		if (!selected || !fruits.includes(selected)) {
+			let nearby = world.getSpriteAt(index.x, index.y, fruits);
+			if (nearby && fruits.includes(nearby)) {
+				selectedObjects[i] = nearby;
+				selected = nearby;
+				selected.vel.set(0, 0); // freeze physics
+			} else {
+				selectedObjects[i] = null;
+				continue;
+			}
+		}
+		// Move the selected fruit with the fingertip
+		selected.pos.x = lerp(selected.pos.x, index.x, 0.35);
+		selected.pos.y = lerp(selected.pos.y, index.y, 0.35);
+	}
 }
-
-
-// function moveFruits() {
-//   for (let i = 0; i < hands.length; i++) {
-//     let hand = hands[i];
-//     if (!hand) {
-//       selectedObjects[i] = null;
-//       continue;
-//     }
-
-//     let index = hand.keypoints[8]; // index fingertip
-//     if (!index) {
-//       selectedObjects[i] = null;
-//       continue;
-//     }
-
-//     let selected = selectedObjects[i];
-
-//     // If nothing selected or it's no longer valid, try to pick a nearby fruit
-//     if (!selected || !fruits.includes(selected)) {
-//       let nearby = world.getSpriteAt(index.x, index.y, fruits);
-//       if (nearby && dist(index.x, index.y, nearby.x, nearby.y) < 60) {
-//         selectedObjects[i] = nearby;
-//         selected = nearby;
-//       } else {
-//         selectedObjects[i] = null;
-//       }
-//     }
-
-//     // Move the selected fruit with the fingertip
-//     if (selected) {
-//       selected.pos.x = index.x;
-//       selected.pos.y = index.y;
-//       selected.vel.set(0, 0); // stop physics
-//     }
-//   }
-// }
-
-
+ 
 function tallyFruits(){
     if(fruits.collides(basket)){
         for(let fruit of fruits){
@@ -298,7 +277,6 @@ function tallyFruits(){
 }
 
 function printReceiptStats() {
-    textFont(receiptFont); // Apply monospaced font
     let lines = [];
     // textAlign is center by default
     // pad text to be 32 charcters wide
@@ -349,69 +327,73 @@ function formatRow(item, qty, price) {
 
     return itemCol + qtyCol + priceCol;
 }
-// Draw hands
+
+
 function drawMeshHand() {
-	for(let hand of hands){
-		let connections = [
-			[0, 1], [1, 2], [2, 3], [3, 4],     // thumb
-			[5, 6], [6, 7], [7, 8],             // index
-			[9, 10], [10, 11], [11, 12],        // middle
-			[13, 14], [14, 15], [15, 16],       // ring
-			[17, 18], [18, 19], [19, 20],       // pinky
-			[5, 9], [9, 13], [13, 17], [17, 0], [2, 5] // palm outline
-		];
+  const connections = [
+    [0, 1], [1, 2], [2, 3], [3, 4],
+    [5, 6], [6, 7], [7, 8],
+    [9, 10], [10, 11], [11, 12],
+    [13, 14], [14, 15], [15, 16],
+    [17, 18], [18, 19], [19, 20],
+    [5, 9], [9, 13], [13, 17], [17, 0]
+  ];
 
-		for (let [a, b] of connections) {
-			let p1 = hand.keypoints[a];
-			let p2 = hand.keypoints[b];
-			if (!p1 || !p2) continue;
+  for (let h = 0; h < hands.length; h++) {
+    let hand = hands[h];
 
-			let x1 = p1.x;
-			let y1 = p1.y;
-			let x2 = p2.x;
-			let y2 = p2.y;
+    // Ensure pool exists, chreate new edges if there is new hands, pre-preped 2 hands
+    // New edges created will be reatined her for later use
+    if (!handEdgePools[h]) {
+      handEdgePools[h] = [];
+    }
 
-			let midX = (x1 + x2) / 2;
-			let midY = (y1 + y2) / 2;
-			let len = dist(x1, y1, x2, y2);
-			let angle = atan2(y2 - y1, x2 - x1);
+    let pool = handEdgePools[h];
 
-			// Estimate stroke size based on hand size for VISUALS only
-			let wrist = hand.keypoints[0];      // wrist
-			let middleTip = hand.keypoints[12]; // middle fingertip
-			let handSize = dist(wrist.x, wrist.y, middleTip.x, middleTip.y);
-			let thickness = map(handSize, 80, 300, 2, 25); // adjust range to your camera
+    // Create new edges if not enough
+    while (pool.length < connections.length) {
+      let edge = new Sprite(0, 0, [10, 0], 'static');
+      edge.color = 'transparent';
+      edge.stroke = 'rgba(252, 218, 115, 0)';
+      edge.strokeWeight = 2;
+      edge.visible = false;
+      pool.push(edge);
+    }
 
+    // Update active edges
 
-			let edge = new Sprite(midX, midY, [len, angle]);
-            if(a ==7 && b ==8 ){
-                edge.overlaps(allSprites);
-            }else{
-                edge.collider = 'static';
-            }
-			edge.stroke = 'rgba(252, 218, 115, 1)';
-			edge.strokeWeight = thickness;
-			edge.life = 2;
-		}
+    for (let i = 0; i < connections.length; i++) {
+        let [a, b] = connections[i];
+        let p1 = hand.keypoints[a];
+        let p2 = hand.keypoints[b];
+        let edge = pool[i];
 
-		drawPalmFill(hand);
-	}
-}
+        let midX = (p1.x + p2.x) / 2;
+        let midY = (p1.y + p2.y) / 2;
+        let len = dist(p1.x, p1.y, p2.x, p2.y);
+        let angle = atan2(p2.y - p1.y, p2.x - p1.x);
+        if ([a,b] == [7, 8]){edge.collider = 'none';}
+        edge.pos.x = lerp(midX,edge.pos.x,0.1);
+        edge.pos.y = lerp(midY,edge.pos.y, 0.1);
+        edge.rotation = angle;
+        edge.w = len;
+        edge.strokeWeight = 50;
+        edge.visible = true;
+        edge.debug = false;
+        }
 
-function drawPalmFill(hand) {
-  // Use a loop of keypoints that form the palm
-  let palmIndices = [0, 1, 2, 5, 9, 13, 17, 0];
-  let palmPoints = [];
-
-  for (let i of palmIndices) {
-    let kp = hand.keypoints[i];
-    if (kp) palmPoints.push([kp.x, kp.y]);
+    // Hide unused (if pool longer than needed)
+    for (let i = connections.length; i < pool.length; i++) {
+      pool[i].visible = false;
+    }
   }
 
-  if (palmPoints.length >= 3) {
-    let palm = new Sprite(palmPoints, 'static');
-    palm.color =  'rgba(252, 218, 115, 0.8)';
-    palm.stroke = 'rgba(0,0,0,0)';
-    palm.life = 5;
+  // Hide unused hand pools (e.g., if only 1 hand now) and move them out of the screen to prevent collisions
+  for (let h = hands.length; h < handEdgePools.length; h++) {
+    for (let edge of handEdgePools[h]) {
+        edge.visible = false;
+        edge.pos.x = -15;
+        edge.pos.y = -15;
+    }
   }
 }

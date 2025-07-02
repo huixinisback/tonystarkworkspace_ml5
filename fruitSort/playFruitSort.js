@@ -32,7 +32,7 @@ function preload(){
 
 function setup(){
     new Canvas();
-    world.gravity = {x:0, y:3}
+    world.gravity = {x:0, y:1}
     fruits = new Group();
     fruits.collider = 'dynamic';
 
