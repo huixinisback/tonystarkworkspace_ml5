@@ -11,18 +11,18 @@ let options = {
   landmarkModelUrl: undefined, //default to use the tf.hub model
 }
 
- // Create constraints for video settings
-  let constraints = {
-    video: {
-      mandatory: {
-        minWidth: 1280,
-        minHeight: 720
-      },
-      optional: [{ minFrameRate: 50 }]
+// Create constraints for video settings
+let constraints = {
+video: {
+    mandatory: {
+    minWidth: 1280,
+    minHeight: 720
+    },
+    optional: [{ minFrameRate: 50 }]
     },
     audio: false,
     flipped:true,
-  };
+};
 
 let playerSprites = [] // to store player sprites that will be used for detection
 let playerData = [] // to store player specific data
