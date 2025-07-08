@@ -1,49 +1,95 @@
 let beats;
 let currentLayer = 1000; // start high so first blocks are in front
 //music settings
-let beatInterval = 0.25; // seconds per block (4 per sec)
+let beatInterval = 1; // seconds per block (4 per sec)
 let nextBeatTime = 0;
 let beatStarted = false;
 let leadTime = 0.5; // optional, for visual anticipation
 let started = false;
+let songPlay;
+let mouseSprite;
+
+
+let score = 0;
+let hitThreshold = 100; // beats must be this large or bigger to be hittable
+
+
+function preload() {
+    songPlay = loadSound("test_sodapop.mp3"); 
+}
 
 function setup() {
     createCanvas(windowWidth,windowHeight);
     beats = new Group();
+
+    songPlay.onended(() => {
+        started = false;
+        beatStarted = false;
+        promptRestart();
+    });
+
+    mouseSprite = new Sprite();
+    mouseSprite.d = 50; // circular shape
+    mouseSprite.collider = 'none'; // no physics, just overlap check
+    mouseSprite.color = 'blue';
+    mouseSprite.layer = 9999; // keep it on top
+
 }
 
 function draw(){
     clear();
     background(220);
-    if (frameCount % 30 === 0) {
-        // spawn block at (x position, y posistion, z position, size)
-        spawnBlock(random(width/2-100, width/2+100), random(height/2-100,height/2+100));
+    fill(0);
+    noStroke();
+    textSize(24);
+    textAlign(LEFT, TOP);
+    text("Score: " + score, 10, 10);
+    mouseSprite.moveTowards(mouse.x, mouse.y, 0.2);
+
+    if (!started && !songPlay.isPlaying()) {
+        promptRestart();
     }
+
 
     if (started && songPlay && songPlay.isPlaying()) {
         let now = songPlay.currentTime();
 
         if (now >= nextBeatTime - leadTime) {
             // always spawn 1 block at (x position, y posistion, z position, size)
-            spawnBlock(random(width/2-100, width/2+100), random(height/2-100,height/2+100));
+            spawnBlock(random(width/2-20, width/2+20), random(height/2-20,height/2+20));
 
             // 30% chance to spawn a 2nd block simultaneously
             if (random() < 0.3) {
                 // spawn block at (x position, y posistion, z position, size)
-                spawnBlock(random(width/2-100, width/2+100), random(height/2-100,height/2+100));
+                spawnBlock(random(width/2-20, width/2+20), random(height/2-20,height/2+20));
             }
 
             nextBeatTime += beatInterval;
         }
     }
 
-    beats.cull(500); // remove sprites that are no longer in view
+    for (let i = beats.length - 1; i >= 0; i--) {
+        let beat = beats[i];
+        if (beat.w >= hitThreshold && mouseSprite.overlaps(beat)) {
+            score += 1;
+            beat.remove();
+        }
+
+        if (beat.y < -100 || beat.x < -100 || beat.x > width + 100 || beat.y > height + 100) {
+            score -= 1;
+            beat.remove();
+        }
+    }
+
+
+    
+    // movement of sprite
     for (let beat of beats) {
         beat.zDepth -= 0.2;
 
         // scale and size based on depth
-        let scale = map(beat.zDepth, 20, 1, 0.2, 2.5);
-        beat.w = beat.h = beat.baseSize * scale;
+        let scl = map(beat.zDepth, 20, 1, 0.2, 2.5);
+        beat.w = beat.h = beat.baseSize * scl;
 
         // fake perspective shift based on distance from center
         let centerX = width / 2;
@@ -69,7 +115,7 @@ function draw(){
 
 }
 
-function spawnBlock(x=50, y=50 , z = 20, size = 50) {
+function spawnBlock(x=50, y=50 , z = 10, size = 50) {
     let beat = new Sprite(x, y);
     beat.zDepth = z;           // custom fake Z-depth
     beat.baseSize = size;      // base size to scale from
@@ -138,12 +184,36 @@ function spawnBlock(x=50, y=50 , z = 20, size = 50) {
             x1 + dx, y1 + dy    // top-left back
         );
 
-        // Draw the red face
+        // Draw the sprite and this
         defaultDraw.call(this);
     };
 
-    beats.push(beat);     // add to blockGroup for updates
+    beat.onMousePressed = () => {
+        score += 1;
+        beat.remove(); // remove clicked beat
+    };
+
+
+    beats.push(beat);     // add to blockGroup for updates  
     return beat;
 }
 
 
+function keyPressed() {
+    if (key === "=") {
+        if (!started) {
+            beats.removeAll(); // clear old beats
+            started = true;
+            beatStarted = true;
+            songPlay.play();
+            nextBeatTime = songPlay.currentTime() + leadTime;
+        }
+    }
+}
+
+function promptRestart() {
+    fill(0);
+    textSize(24);
+    textAlign(CENTER, CENTER);
+    text("Song ended. Press '=' to restart.", width / 2, height / 2);
+}

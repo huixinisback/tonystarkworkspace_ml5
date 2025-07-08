@@ -1,39 +1,82 @@
 let beats;
-let currentLayer = 1000; // start high so first blocks are in front
-//music settings
-let beatInterval = 0.25; // seconds per block (4 per sec)
-let nextBeatTime = 0;
-let beatStarted = false;
-let leadTime = 0.5; // optional, for visual anticipation
+let currentLayer = 10000;
+
+let songAnalyse, songPlay;
+let fft, peak;
+let beatData = [];
+let analysisDone = false;
 let started = false;
+let playing = false;
+let lastBeat = 0;
+let currentIndex = 0;
+
+let analysisStartTime = 0;
+let countdownDuration = 0;
+let showPlayPrompt = false;
+
+function preload() {
+    songAnalyse = loadSound('test_sodapop.mp3');
+    songPlay = loadSound('test_sodapop.mp3');
+}
 
 function setup() {
-    createCanvas(windowWidth,windowHeight);
+    createCanvas(windowWidth, windowHeight);
+    textAlign(CENTER, CENTER);
+    textSize(24);
+    let gain = new p5.Gain();
+    songAnalyse.disconnect();      // remove from master output
+    songAnalyse.connect(gain);     // connect to gain
+    gain.amp(0);          
+
+    fft = new p5.FFT();
+    peak = new p5.PeakDetect();
+    fft.setInput(songAnalyse);
+
     beats = new Group();
 }
 
-function draw(){
-    clear();
-    background(220);
-    if (frameCount % 30 === 0) {
-        // spawn block at (x position, y posistion, z position, size)
-        spawnBlock(random(width/2-100, width/2+100), random(height/2-100,height/2+100));
+function draw() {
+    background(0);
+    fill(255);
+
+    if (!started) {
+        text("Click to start beat analysis", width / 2, height / 2);
+        return;
     }
 
-    if (started && songPlay && songPlay.isPlaying()) {
+    // During fast analysis
+    if (started && !analysisDone) {
+        let t = songAnalyse.currentTime() / 4;
+        fft.analyze();
+        peak.update(fft);
+
+        if (peak.isDetected && t - lastBeat > 0.15) {
+            beatData.push(t);
+            lastBeat = t;
+        }
+
+        countdownDuration = max(0, songAnalyse.duration() / 4 - songAnalyse.currentTime());
+        text("Analyzing song... " + nf(countdownDuration, 1, 2) + "s", width / 2, height / 2);
+
+        if (!songAnalyse.isPlaying()) {
+            analysisDone = true;
+            showPlayPrompt = true;
+        }
+    }
+
+    // After analysis is done
+    if (showPlayPrompt && !playing) {
+        text("Analysis done! Click to play & start!", width / 2, height / 2);
+        console.log(beatData);
+    }
+
+    // Play phase
+    if (playing && songPlay.isPlaying()) {
         let now = songPlay.currentTime();
 
-        if (now >= nextBeatTime - leadTime) {
-            // always spawn 1 block at (x position, y posistion, z position, size)
-            spawnBlock(random(width/2-100, width/2+100), random(height/2-100,height/2+100));
-
-            // 30% chance to spawn a 2nd block simultaneously
-            if (random() < 0.3) {
-                // spawn block at (x position, y posistion, z position, size)
-                spawnBlock(random(width/2-100, width/2+100), random(height/2-100,height/2+100));
-            }
-
-            nextBeatTime += beatInterval;
+        while (currentIndex < beatData.length && now >= beatData[currentIndex]) {
+            spawnBlock(random(width / 2 - 100, width / 2 + 100), random(height / 2 - 100, height / 2 + 100));
+            currentIndex++;
         }
     }
 
@@ -66,7 +109,36 @@ function draw(){
         }
 
     }
+}
 
+function mousePressed() {
+    // Required by browser
+    if (getAudioContext().state !== "running") {
+        getAudioContext().resume();
+    }
+
+    // Start analysis phase
+    if (!started) {
+        started = true;
+
+        let gain = new p5.Gain();
+        songAnalyse.disconnect();
+        songAnalyse.connect(gain);
+        gain.amp(0); // muted but analyzable
+
+        songAnalyse.rate(4);
+        songAnalyse.play();
+
+        fft.setInput(songAnalyse);  // ✅ safely set input after play
+    }
+
+    // After analysis, start song playback
+    else if (analysisDone && !playing) {
+        playing = true;
+        songPlay.setVolume(1);
+        songPlay.rate(1);
+        songPlay.play();
+    }
 }
 
 function spawnBlock(x=50, y=50 , z = 20, size = 50) {
@@ -145,5 +217,3 @@ function spawnBlock(x=50, y=50 , z = 20, size = 50) {
     beats.push(beat);     // add to blockGroup for updates
     return beat;
 }
-
-
