@@ -20,8 +20,13 @@ let video;
 let hands = []; // store an array of detected hands, and each hand has a property keypoints that will contain an array of keypoints.
 let player;
 let playerSprites = [] // to store player sprites that will be used for detection
+// hand mechanics for tracking
+let baseAngles = []; // base angles per hand
+let handDetected = []; // to track hand presence for each hand
+
 // Create options for model settings
 let options = {
+  maxHands: 1,
   flipped: true,
   runtime: "tfjs",
   modelType: "full",
@@ -108,13 +113,17 @@ function setup() {
     infoText.visible = false;
 
     // finger sprites
-    for(i = 0; i < 2; i++){
+    for(i = 0; i < 1; i++){
         // Create Sprites
         let thumb = new fingerPoints.Sprite(-20,0,40, 'none');
         let index = new fingerPoints.Sprite(-20,0,40, 'none');
         let fingers = [thumb, index];
         playerSprites.push(fingers);
     }
+
+    // 1 SET of finger control tracking
+    baseAngles = [null, null];  // match playerSprites indices
+    handDetected = [false, false];
 
 }
 
@@ -137,7 +146,7 @@ function draw() {
     for (let i = 0; i < hands.length; i++) {
         let hand = hands[i];
         let player = playerSprites[i];
-        drawKeyPoints(hand, player);
+        drawKeyPoints(hand, player, i);
     }
 
     textAlign(CENTER);
@@ -218,29 +227,58 @@ function gotHands(results) {
   hands = results;
 }
 
-function drawKeyPoints(hand, player){
-  if (hand){
-    if(hand.keypoints[4] && hand.keypoints[8]){
-        let thumb = hand.keypoints[4];
-        let thumbSprite = player[0];
-        thumbSprite.x = lerp(thumbSprite.x, thumb.x, 0.7);
-        thumbSprite.y = lerp(thumbSprite.y, thumb.y, 0.7);
-
-        let index = hand.keypoints[8];
-        let indexSprite = player[1];
-        indexSprite.x = lerp(indexSprite.x,index.x, 0.7);
-        indexSprite.y = lerp(indexSprite.y, index.y, 0.7);
-
-        moveDial(thumbSprite, indexSprite);
+function drawKeyPoints(hand, player, i){
+    if (!hand) {
+        handDetected[i] = false;
+        return;
     }
-  }else{
-    let thumbSprite = player[0];
-    thumbSprite.x = 0;
-    thumbSprite.y = 0;
-    let indexSprite = player[1];
-    indexSprite.x = 0;
-    indexSprite.y = 0;
-  }
+
+    if (hand){
+        if(hand.keypoints[4] && hand.keypoints[8]){
+            let thumb = hand.keypoints[4];
+            let thumbSprite = player[0];
+            thumbSprite.x = lerp(thumbSprite.x, thumb.x, 0.7);
+            thumbSprite.y = lerp(thumbSprite.y, thumb.y, 0.7);
+
+            let index = hand.keypoints[8];
+            let indexSprite = player[1];
+            indexSprite.x = lerp(indexSprite.x,index.x, 0.7);
+            indexSprite.y = lerp(indexSprite.y, index.y, 0.7);
+
+
+            let dx = index.x - thumb.x;
+            let dy = index.y - thumb.y;
+            let currentAngle = atan2(dy, dx);
+
+            // If new hand detected
+            if (!handDetected[i]) {
+                baseAngles[i] = currentAngle;
+                handDetected[i] = true;
+            }
+
+            let relativeAngle = currentAngle - baseAngles[i];
+
+            // Optional: Clamp or reset if angle jumps too much
+            if (abs(relativeAngle) > PI) {
+                relativeAngle = 0;
+                baseAngles[i] = currentAngle;
+            }
+            if (thumbSprite.overlapping(dial) && indexSprite.overlapping(dial) && !thumbSprite.overlapping(dialButton) && !indexSprite.overlapping(dialButton)){
+                // Simulate dial rotation
+                if (!pause) {
+                    dial.rotation += relativeAngle;  // scaled down for control
+                }
+            }
+            
+        }
+    }else{
+        let thumbSprite = player[0];
+        thumbSprite.x = 0;
+        thumbSprite.y = 0;
+        let indexSprite = player[1];
+        indexSprite.x = 0;
+        indexSprite.y = 0;
+    }
 }
 
 function validateCombo() {
@@ -408,7 +446,3 @@ function shakeY(sprite, amplitude = 20, times = 2, speed = 100) {
     });
 }
 
-function moveDial(thumb, index){
-    if(thumb.overlapping(dial) && index.overlapping(dial) && !thumb.overlapping(dialButton) && !index.overlapping(dialButton)){
-    }
-}
