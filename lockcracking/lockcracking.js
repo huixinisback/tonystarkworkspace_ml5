@@ -1,5 +1,5 @@
 let dial, dialButton, hintSprite, infoIcon, infoSprite, infoImg, infoText;
-let combo = [30, 70, 10]; // The 3-number combination
+let combo = [70, 40, 10]; // The 3-number combination
 let input = [];
 let direction = 1; // 1 = clockwise, -1 = counter-clockwise
 let previousDirection = 1;
@@ -23,6 +23,13 @@ let playerSprites = [] // to store player sprites that will be used for detectio
 // hand mechanics for tracking
 let baseAngles = []; // base angles per hand
 let handDetected = []; // to track hand presence for each hand
+// Store previous y positions for delta
+let prevThumbY = [0, 0]; // per player
+let prevIndexY = [0, 0];
+let angleOffset = [0, 0];
+let prevDialRotation = [0, 0];
+let accumulatedAngle = [0, 0]; // track delta since last step
+
 
 // Create options for model settings
 let options = {
@@ -58,12 +65,12 @@ function preload() {
 }
 
 function setup() {
-    createCanvas(windowWidth, windowHeight);
+    new Canvas("16:9");// aspect ratio - only in p5play
     // fingers
     fingerPoints = new Group();
     fingerPoints.color = 'rgba(255, 255, 255, 0.50)';
     fingerPoints.strokeWeight = 0;
-
+    
     // Create the video and hide it
     video = createCapture(constraints);
     video.size(width,height);
@@ -74,39 +81,38 @@ function setup() {
 
 
     // game sprites
-    dial = new Sprite(width / 2, height / 2, 300, 'kinematic');
+    dial = new Sprite(width / 2, height / 2, width*0.23, 'kinematic');
     dial.image = dialImg;
     dial.img.scale.x = dial.w / dial.img.width;
     dial.img.scale.y = dial.h / dial.img.height;
     dial.rotation = 0;
     dial.rotationLock = false; // allow rotation
 
-    dialButton = new Sprite(width / 2, height / 2, 150, 'kinematic');
+    dialButton = new Sprite(width / 2, height / 2, width*0.11, 'kinematic'); // the knob to turn
     dialButton.image = dialButtonImg;
     dialButton.img.scale.x = dialButton.w / dialButton.img.width;
     dialButton.img.scale.y = dialButton.h / dialButton.img.height;
     dialButton.rotationLock = true; // dont allow rotation
 
-    hintSprite = new Sprite(25,25,50,50,'none');
-    infoSprite = new Sprite(width/2, height/2, width-10, height-10,'none');
+    hintSprite = new Sprite(25/1280*width,25/720*height,50/1280*width,50/720*height,'none');
+    infoSprite = new Sprite(width/2, height/2,width * 0.99, height * 0.99,'none');
     infoSprite.img = infoBookImg.get();
     infoSprite.img.scale.x = infoSprite.w / infoSprite.img.width;
     infoSprite.img.scale.y = infoSprite.h / infoSprite.img.height;
-    infoImg = new Sprite(width/4+50,height/2,width/2-150,height-100,'none');
+    infoImg = new Sprite(width*0.29,height/2,width*0.38,height * 0.86,'none');
     infoImg.img = infoAsciiImg;
     infoImg.img.scale.x = infoImg.w / infoImg.img.width;
     infoImg.img.scale.y = infoImg.h / infoImg.img.height;
-    infoText = new Sprite(width/4*3-30,height/2, width/2-150,height-100,'kinematic');
+    infoText = new Sprite(width * 0.74,height/2, width * 0.38 ,height * 0.86,'none');
     infoText.color ='rgba(0,0,0,0)';
     infoText.strokeWeight = 0;
-    infoText.textSize = 20;  
+    infoText.textSize = 18/720 * height;  
     textFont('Courier New');
     hintInfo();
-    infoIcon = new Sprite(60, height-60, 100,100,'none');
+    infoIcon = new Sprite(60/1280*width, height * 0.92, 100/1280*width, 100/720*height,'kinematic');
     infoIcon.img = infoIconImg;
     infoIcon.img.scale.x = infoIcon.w / infoIcon.img.width;
     infoIcon.img.scale.y = infoIcon.h / infoIcon.img.height;
-    infoIcon.overlaps(allSprites)
     //hide everything
     infoSprite.visible = false;
     infoImg.visible = false;
@@ -115,8 +121,8 @@ function setup() {
     // finger sprites
     for(i = 0; i < 1; i++){
         // Create Sprites
-        let thumb = new fingerPoints.Sprite(-20,0,40, 'none');
-        let index = new fingerPoints.Sprite(-20,0,40, 'none');
+        let thumb = new fingerPoints.Sprite(-20,0,40/1280*width, 'none');
+        let index = new fingerPoints.Sprite(-20,0,40/1280*width, 'none');
         let fingers = [thumb, index];
         playerSprites.push(fingers);
     }
@@ -124,6 +130,7 @@ function setup() {
     // 1 SET of finger control tracking
     baseAngles = [null, null];  // match playerSprites indices
     handDetected = [false, false];
+    angleMode(DEGREES); 
 
 }
 
@@ -134,29 +141,23 @@ function draw() {
     image(video, 0, 0, width, width * video.height / video.width);
     //background(0);
     pop();
-    
-    if(hands.length>playerSprites.length){
-        // Create Sprites
-        let thumb = new fingerPoints.Sprite(-20,0,40, 'none');
-        let index = new fingerPoints.Sprite(-20,0,40, 'none');
-        let fingers = [thumb, index];
-        playerSprites.push(fingers);
-    }
-
+    push();
+    strokeWeight(10/1280*width);
+    stroke("rgb(184, 14, 14)");
+    line(width/2,height/2 - dial.d/2,width/2, height/2-dial.d/4*3);
+    pop();
     for (let i = 0; i < hands.length; i++) {
         let hand = hands[i];
         let player = playerSprites[i];
         drawKeyPoints(hand, player, i);
     }
-
+    textSize(24/1280*width);
     textAlign(CENTER);
-    textSize(24);
     if (frameCount%60 ==0){
         hints(combo);
     }
 
     if(infoIcon.mouse.presses('left')){
-        console.log("icon pressed")
         if(infoIcon.img == infoIconImg){
             openBook();
         }else{
@@ -166,8 +167,8 @@ function draw() {
     
     if (!pause){
         // Rotate with left/right arrow keys
-        if (kb.pressing('left')) dial.rotation -= 18;
-        if (kb.pressing('right')) dial.rotation += 18;
+        if (kb.pressing('left')) dial.rotation -= 3.6;
+        if (kb.pressing('right')) dial.rotation += 3.6;
     }
     
     // Track direction of rotation
@@ -182,18 +183,12 @@ function draw() {
     // Calculate number on top of the dial (0° = top)
     let currentAngle = ((-dial.rotation % 360) + 360) % 360; // invert rotation direction
     let currentNumber = int(map(currentAngle, 0, 360, 0, 100)) % 100;
-    
-    // prevent too many turns
-    if (direction === previousDirection){
-        rotated+=delta;
-    }
+    let directionChanged = direction !== previousDirection && abs(delta) > 0.5; // at least changed value by 1
 
-    if (abs(rotated)>720){
-        rotated=0;
-        validateCombo();
-    }
+    console.log("dial.rotation: ",dial.rotation,", delta: ",delta, ", abs(delta): ", abs(delta), ", direction: ", direction);
 
-    if (!cracked && inputDelay === 0 && direction !== 0 && direction !== previousDirection && input.length < 2) {
+    if (!cracked && inputDelay === 0 && direction !== 0 && directionChanged && input.length < 2) {
+        console.log("printed input, direction: ", direction, ", previous direction: ",previousDirection);
         input.push(previousNumber);
         inputDelay = 30; // prevent accidental double inputs
     }
@@ -210,13 +205,13 @@ function draw() {
     previousNumber = currentNumber;
 
     fill(0);
-    text("Dial: " + nf(currentNumber, 2), width / 2, 50);
+    text("Dial: " + nf(currentNumber, 2), width *0.5, height * 0.07);
 
     if (cracked) {
         fill("green");
-        text("🔓 LOCK CRACKED!", width / 2, height-50); 
+        text("🔓 LOCK CRACKED!", width *0.5, height * 0.93); 
     }else{
-        text("Input: " + input.join(" - "), width / 2, height - 50);
+        text("Input: " + input.join(" - "), width *0.5, height * 0.93);
     }
 
 }
@@ -245,31 +240,52 @@ function drawKeyPoints(hand, player, i){
             indexSprite.x = lerp(indexSprite.x,index.x, 0.7);
             indexSprite.y = lerp(indexSprite.y, index.y, 0.7);
 
+            // Store previous Y
+            let dyThumb = thumbSprite.y - prevThumbY[i];
+            let dyIndex = indexSprite.y - prevIndexY[i];
+            prevThumbY[i] = thumbSprite.y;
+            prevIndexY[i] = indexSprite.y;
 
-            let dx = index.x - thumb.x;
-            let dy = index.y - thumb.y;
-            let currentAngle = atan2(dy, dx);
-
-            // If new hand detected
-            if (!handDetected[i]) {
-                baseAngles[i] = currentAngle;
-                handDetected[i] = true;
-            }
-
-            let relativeAngle = currentAngle - baseAngles[i];
-
-            // Optional: Clamp or reset if angle jumps too much
-            if (abs(relativeAngle) > PI) {
-                relativeAngle = 0;
-                baseAngles[i] = currentAngle;
-            }
-            if (thumbSprite.overlapping(dial) && indexSprite.overlapping(dial) && !thumbSprite.overlapping(dialButton) && !indexSprite.overlapping(dialButton)){
-                // Simulate dial rotation
-                if (!pause) {
-                    dial.rotation += relativeAngle;  // scaled down for control
+            // Check if both fingers are pinching the dial button and moving down
+            if (thumbSprite.overlapping(dialButton) && indexSprite.overlapping(dialButton) && dyThumb > 10 && dyIndex > 10){
+                if (input.length === 2) {
+                    input.push(previousNumber);
+                    validateCombo();
                 }
+            } else if (thumbSprite.overlapping(dialButton) && indexSprite.overlapping(dialButton)) {
+                let dx = index.x - thumb.x;
+                let dy = index.y - thumb.y;
+                let angleBetween = atan2(dy, dx); // angle in degrees
+
+                if (!handDetected[i]) {
+                    baseAngles[i] = angleBetween;
+                    handDetected[i] = true;
+                    accumulatedAngle[i] = 0;
+                }
+
+                let deltaAngle = angleBetween - baseAngles[i];
+
+                // Normalize across -180 to 180
+                if (deltaAngle > 180) deltaAngle -= 360;
+                if (deltaAngle < -180) deltaAngle += 360;
+
+                accumulatedAngle[i] += deltaAngle;
+                baseAngles[i] = angleBetween;
+
+                // Every 3° of hand rotation, rotate dial by 1°
+                while (accumulatedAngle[i] >= 3) {
+                    dial.rotation += 1;
+                    accumulatedAngle[i] -= 3;
+                }
+                while (accumulatedAngle[i] <= -3) {
+                    dial.rotation -= 1;
+                    accumulatedAngle[i] += 3;
+                }
+            } else {
+                handDetected[i] = false;
             }
-            
+
+
         }
     }else{
         let thumbSprite = player[0];
@@ -287,10 +303,10 @@ function validateCombo() {
         pause = true;
         
         shakeY(dial, 20, 2, 100).then(()=>{
-            dial.rotateTo(1080, 2).then(() => {
-                let one =  Math.round(Math.random() * 100);
-                let two = Math.round(Math.random() * 100);
-                let three = Math.round(Math.random() * 100);
+            dial.rotateTo(1080, 5).then(() => {
+                let one =  Math.round(Math.random() * 50 + 50);
+                let two = Math.round(Math.random() * 50);
+                let three = Math.round(Math.random() * one - two);
                 combo = [one, two, three];
                 pause = false;
                 cracked = false;
@@ -361,6 +377,7 @@ function multipliedBy2(number){
 }
 
 function openBook(){
+    bookOpen = true;
     infoIcon.img = infoBookImg.get();
     infoIcon.w *=1.25;
     infoIcon.h *=0.75;
@@ -373,6 +390,7 @@ function openBook(){
 }
 
 function closeBook(){
+    bookOpen = false;
     infoIcon.img = infoIconImg;
     infoIcon.w /=1.25;
     infoIcon.h /=0.75;
@@ -392,29 +410,26 @@ function hintInfo() {
     lines.push("");
     lines.push("🔲 White background: ".padEnd(50));
     lines.push("Number is the first number in sequence.".padEnd(50));
-    lines.push("");
     lines.push("🔷 Blue background: ".padEnd(50));
     lines.push("Number = correct number + 60".padEnd(50));
-    lines.push("");
     lines.push("🟡 Yellow background: ".padEnd(50));
     lines.push("Number = correct number × 2".padEnd(50));
-    lines.push("");
     lines.push("🔴 Red background: ".padEnd(50));
     lines.push("Symbol represents the correct number as an ASCII".padEnd(50));
     lines.push("character. ASCII reference on the left.".padEnd(50));
     lines.push("");
     lines.push("🌀 Rotation Rules:".padEnd(50));
     lines.push("1. Turn dial clockwise to the first number.".padEnd(50));
-    lines.push("");
     lines.push("2. Turn dial anti-clockwise to the second number".padEnd(50));
     lines.push("which confirms the first number.".padEnd(50));
-    lines.push("");
     lines.push("3. Turn dial clockwise to the third number".padEnd(50));
     lines.push("which confirms the second number.".padEnd(50));
-    lines.push("");
     lines.push("4. Move dial down to confirm the third number".padEnd(50));
     lines.push("and unlock.".padEnd(50));
-
+    lines.push("");
+    lines.push("Make sure your fingers are on the knob to rotate.".padEnd(50));
+    lines.push("Alternatively, use arrow keys.".padEnd(50));
+    lines.push("");
     lines.push("Use the clues carefully to deduce the actual".padEnd(50));
     lines.push("combination!".padEnd(50));
     infoText.text = lines.join("\n");
@@ -445,4 +460,3 @@ function shakeY(sprite, amplitude = 20, times = 2, speed = 100) {
         }, speed);
     });
 }
-
