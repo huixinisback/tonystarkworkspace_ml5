@@ -50,9 +50,7 @@ function setup() {
   edge.visible = false;
   handEdgePool.push(edge);
 }
-
 }
-
 
 // Callback function for when handPose outputs data
 function gotHands(results) {
