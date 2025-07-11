@@ -14,6 +14,9 @@ let unlockedCount = 0;
 let hintCounter = 0;
 let pageCounter = 0;
 let rotated = 0;
+let postCrackReset = false;
+let postCrackSuccess = false;
+let timerResume = 0;
 // for handposes
 let handPose;
 let video;
@@ -27,6 +30,7 @@ let handDetected = []; // to track hand presence for each hand
 let prevThumbY = [0, 0]; // per player
 let prevIndexY = [0, 0];
 let accumulatedAngle = [0, 0]; // track delta since last step
+
 
 // Create options for model settings
 let options = {
@@ -84,7 +88,7 @@ function setup() {
     dial.img.scale.y = dial.h / dial.img.height;
     dial.rotation = 0;
     dial.rotationLock = false; // allow rotation
-    dial.rotationDrag = 10;
+    dial.rotationDrag = 0.4;
 
     dialButton = new Sprite(width / 2, height / 2, width*0.11, 'kinematic'); // the knob to turn
     dialButton.image = dialButtonImg;
@@ -149,6 +153,17 @@ function draw() {
             let player = playerSprites[i];
             drawKeyPoints(hand, player, i);
         }
+    }else{
+        for (let i = 0; i < hands.length; i++) {
+            let player = playerSprites[i];
+            let thumbSprite = player[0];
+            thumbSprite.x = -40;
+            thumbSprite.y = -40;
+
+            let indexSprite = player[1];
+            indexSprite.x = -40;
+            indexSprite.y = -40;
+        }
     }
     textSize(24/1280*width);
     textAlign(CENTER);
@@ -204,11 +219,31 @@ function draw() {
     fill(0);
     text("Dial: " + nf(currentNumber, 2), width *0.5, height * 0.07);
 
-    if (cracked) {
+    if (postCrackSuccess) {
         fill("green");
         text("🔓 LOCK CRACKED!", width *0.5, height * 0.93); 
     }else{
         text("Input: " + input.join(" - "), width *0.5, height * 0.93);
+    }
+
+    if (postCrackReset && frameCount >= timerResume) {
+        postCrackReset = false;   
+        timerResume = 0;
+        dial.rotation = 0;
+        if(postCrackSuccess){
+            postCrackSuccess = false;
+            let one = Math.round((Math.random() * 50 + 50) / 10) * 10;
+            if (one === 100) one = 0;
+            let two = Math.round((Math.random() * 50) / 10) * 10;
+            let three = Math.round((Math.random() * 100) / 10) * 10;
+            if (three === 100) three = 0;
+            combo = [one, two, three];
+        }
+
+        pause = false;
+        cracked = false;
+        input = [];
+        previousDirection = 1;
     }
 
 }
@@ -222,8 +257,17 @@ function gotHands(results) {
 function drawKeyPoints(hand, player, i){
     if (!hand) {
         handDetected[i] = false;
+        let thumbSprite = player[0];
+        thumbSprite.x = -40;
+        thumbSprite.y = -40;
+
+        let indexSprite = player[1];
+        indexSprite.x = -40;
+        indexSprite.y = -40;
         return;
     }
+
+    
 
     if (hand){
         if(hand.keypoints[4] && hand.keypoints[8]){
@@ -301,7 +345,7 @@ function drawKeyPoints(hand, player, i){
                     endGoal = map(snappedNum, 0, 50, 0, 180);
                 } 
                 
-                if (snappedNum ==50){
+                if (snappedNum == 50){
                     if(direction === 1){
                         endGoal = 180;
                     }else{
@@ -337,38 +381,27 @@ function validateCombo() {
     if (input[0] === combo[0] && input[1] === combo[1] && input[2] === combo[2]) {
         cracked = true;
         pause = true;
-        let timerResume = frameCount + 120;
-        if(dial && typeof dial.rotateTo === 'function'){ // prevent runtime errors
-            dial.rotateTo(0, 2).then(() => {
-                let one =  Math.round((Math.random() * 50 + 50)/10)*10;
-                if (one === 100){
-                    one = 0; 
-                }
-                let two = Math.round((Math.random() * 50)/10)*10;
-                let three = Math.round((Math.random() * 100)/10)*10;
-                if(three === 100){
-                    three = 0;
-                }
-                combo = [one, two, three];
-                pause = false;
-                cracked = false;
-                input = [];
-                previousDirection = 1;
-            }); // rotate - clearing animation
+        timerResume = frameCount + 120;
+        postCrackReset = true;
+        postCrackSuccess = true;
+
+        if (dial && typeof dial.rotateTo === 'function') {
+            dial.rotateTo(720, 2);
         }
-        
-        unlockedCount+=1;
+
+        unlockedCount += 1;
     } else {
         pause = true;
-        if (dial && typeof dial.rotateTo === 'function'){
-            dial.rotateTo(0, 2).then(() => {
-                input = [];
-                pause = false;
-                previousDirection = 1;
-            }); // rotate - clearing animation
+        timerResume = frameCount + 120;
+        postCrackReset = true;
+
+        if (dial && typeof dial.rotateTo === 'function') {
+            dial.rotateTo(720, 2);
+            console.log("ran");
         }
     }
 }
+
 
 function hints(combo){
     let number = combo[hintCounter];
@@ -396,13 +429,11 @@ function hints(combo){
             break;
         }
     }
-
     if(hintCounter ==2){
         hintCounter = 0;
     }else{
         hintCounter+=1;
     }
-
 }
 
 function encodeAscii(number){
